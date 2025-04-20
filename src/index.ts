@@ -4,16 +4,26 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Corrected route handler
-app.get("/", (req: Request, res: Response) => {
-  res.send("Hello, World!");
+app.post('/identify',async (req: Request, res: Response):Promise<any> => {
+  const { name, email } = req.body;
+
+  // Check if required fields are present
+  if (!name || !email) {
+    return res.status(400).json({ message: 'Name and email are required.' });
+  }
+
+  // Simulate some identification logic (e.g., check a database or some service)
+  return res.json({
+    message: 'Contact identified successfully',
+    contact: { name, email },
+  });
 });
 
-// Start the server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
