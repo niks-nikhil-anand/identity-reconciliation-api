@@ -29,9 +29,11 @@ app.post('/identify', async (req: Request, res: Response): Promise<void> => {
 
 
    // Create new contact or update existing contact
+   const processedContacts = await processContacts(relatedContacts, email, phoneNumber);
 
 
    // at last , format the contact and return the response
+   
     
     res.status(200).json();
   } catch (error) {
@@ -91,6 +93,72 @@ async function findRelatedContacts(email?: string | null, phoneNumber?: string |
 
   return allRelatedContacts;
 }
+
+
+async function processContacts(relatedContacts: Contact[], email?: string | null, phoneNumber?: string | null): Promise<Contact[]> {
+  // If no related contacts, create a new primary contact
+  if (relatedContacts.length === 0) {
+    const newContact = await prisma.contact.create({
+      data: {
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+        linkPrecedence: 'primary'
+      }
+    });
+    return [newContact];
+  }
+
+  // Find the primary contact from the related contacts
+  const primaryContact = relatedContacts.find(contact => contact.linkPrecedence === 'primary') || relatedContacts[0];
+  
+  // Check if the provided email and phoneNumber contain new information
+  const existingEmails = relatedContacts.map(contact => contact.email).filter(Boolean);
+  const existingPhones = relatedContacts.map(contact => contact.phoneNumber).filter(Boolean);
+  
+  const hasNewEmail = email && !existingEmails.includes(email);
+  const hasNewPhone = phoneNumber && !existingPhones.includes(phoneNumber);
+  
+  // Create a new secondary contact if new information is provided
+  if ((hasNewEmail || hasNewPhone) && (email || phoneNumber)) {
+    const newContact = await prisma.contact.create({
+      data: {
+        email: email || null,
+        phoneNumber: phoneNumber || null,
+        linkedId: primaryContact.id,
+        linkPrecedence: 'secondary'
+      }
+    });
+    relatedContacts.push(newContact);
+  }
+  
+  // Handle the case where we need to link previously separate primary contacts
+  await consolidatePrimaryContacts(relatedContacts);
+  
+  return relatedContacts;
+}
+
+async function consolidatePrimaryContacts(){
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
