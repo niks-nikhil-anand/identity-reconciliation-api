@@ -1,25 +1,23 @@
-# Use the official Node.js LTS image
-FROM node:20-alpine
+# Use an official Node.js runtime as the base image
+FROM node:18-alpine
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /app
 
-# Install dependencies
+# Copy package.json and package-lock.json
 COPY package*.json ./
-RUN npm install
 
-# Copy Prisma files and generate the Prisma client
-COPY prisma ./prisma
-RUN npx prisma generate
+# Install dependencies
+RUN npm install
 
 # Copy the rest of the application code
 COPY . .
 
+# Build the TypeScript code
+RUN npm run build
+
 # Expose the application port
 EXPOSE 3000
 
-# Set the environment variable for production
-ENV NODE_ENV=production
-
 # Start the application
-CMD ["npm", "run", "dev"]
+CMD ["npm", "start"]
