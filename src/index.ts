@@ -24,7 +24,13 @@ app.post('/identify', async (req: Request, res: Response): Promise<void> => {
     }
 
    // Find all contacts that matches either email or phone number
+   const relatedContacts = await findRelatedContacts(email, phoneNumber);
+
+
+
    // Create new contact or update existing contact
+
+
    // at last , format the contact and return the response
     
     res.status(200).json();
@@ -35,7 +41,56 @@ app.post('/identify', async (req: Request, res: Response): Promise<void> => {
 });
 
 
+async function findRelatedContacts(email?: string | null, phoneNumber?: string | null): Promise<Contact[]> {
+  // Start by finding any contacts that match the email or phoneNumber
+  const directlyRelatedContacts = await prisma.contact.findMany({
+    where: {
+      OR: [
+        { email: email || undefined },
+        { phoneNumber: phoneNumber || undefined }
+      ],
+      deletedAt: null
+    },
+    orderBy: {
+      createdAt: 'asc'
+    }
+  });
 
+  if (directlyRelatedContacts.length === 0) {
+    return [];
+  }
+
+  // Find the primary contacts by checking linkedIds
+  const linkedContactIds = directlyRelatedContacts
+    .filter((contact): contact is Contact & { linkedId: number } => contact.linkedId !== null)
+    .map(contact => contact.linkedId);
+
+  // Get unique primary contact IDs
+  const primaryContactIds = [
+    ...new Set([
+      ...directlyRelatedContacts
+        .filter(contact => contact.linkPrecedence === 'primary')
+        .map(contact => contact.id),
+      ...linkedContactIds
+    ])
+  ];
+
+  // Get all contacts associated with these primary contacts
+  const allRelatedContacts = await prisma.contact.findMany({
+    where: {
+      OR: [
+        { id: { in: primaryContactIds } },
+        { linkedId: { in: primaryContactIds as number[] } }
+      ],
+      deletedAt: null
+    },
+    orderBy: {
+      createdAt: 'asc'
+    }
+  });
+
+  return allRelatedContacts;
+}
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
