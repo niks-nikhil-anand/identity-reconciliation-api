@@ -33,7 +33,7 @@ app.post('/identify', async (req: Request, res: Response): Promise<void> => {
 
 
    // at last , format the contact and return the response
-   
+
     
     res.status(200).json();
   } catch (error) {
@@ -137,9 +137,55 @@ async function processContacts(relatedContacts: Contact[], email?: string | null
   return relatedContacts;
 }
 
-async function consolidatePrimaryContacts(){
+// Consolidate multiple primary contacts if needed
 
+async function consolidatePrimaryContacts(contacts: Contact[]): Promise<void> {
+  const primaryContacts = contacts.filter(contact => contact.linkPrecedence === 'primary');
+  
+  if (primaryContacts.length <= 1) {
+    return; 
+  }
+  
+  // Sort primary contacts by creation date
+  primaryContacts.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  
+  const oldestPrimary = primaryContacts[0];
+  const primaryContactsToConvert = primaryContacts.slice(1);
+  
+  // Convert other primary contacts to secondary
+  for (const contact of primaryContactsToConvert) {
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: {
+        linkedId: oldestPrimary.id,
+        linkPrecedence: 'secondary',
+        updatedAt: new Date()
+      }
+    });
+    
+    // Update all secondary contacts linked to this primary to point to the oldest primary
+    await prisma.contact.updateMany({
+      where: { linkedId: contact.id },
+      data: {
+        linkedId: oldestPrimary.id,
+        updatedAt: new Date()
+      }
+    });
+    
+    // Update the contact object in our array
+    contact.linkedId = oldestPrimary.id;
+    contact.linkPrecedence = 'secondary';
+    
+    // Update secondary contacts in our array
+    contacts.forEach(c => {
+      if (c.linkedId === contact.id) {
+        c.linkedId = oldestPrimary.id;
+      }
+    });
+  }
 }
+
+
 
 
 
