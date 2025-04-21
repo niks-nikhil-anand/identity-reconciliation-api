@@ -32,10 +32,12 @@ app.post('/identify', async (req: Request, res: Response): Promise<void> => {
    const processedContacts = await processContacts(relatedContacts, email, phoneNumber);
 
 
-   // at last , format the contact and return the response
+   // At last , format the contact and return the response
+   const contactResponse = formatContactResponse(processedContacts);
+
 
     
-    res.status(200).json();
+   res.status(200).json({ contact: contactResponse });
   } catch (error) {
     console.error('Error processing identify request:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -183,6 +185,50 @@ async function consolidatePrimaryContacts(contacts: Contact[]): Promise<void> {
       }
     });
   }
+}
+
+
+// Format the response according to the required structure
+function formatContactResponse(contacts: Contact[]): ContactResponse {
+ // Re-fetch primary contact after potential consolidation
+ const primaryContact = contacts.find(contact => contact.linkPrecedence === 'primary');
+ 
+ if (!primaryContact) {
+   throw new Error("Primary contact not found");
+ }
+ 
+ const secondaryContacts = contacts.filter(contact => contact.linkPrecedence === 'secondary');
+ 
+ // Collect unique emails and phone numbers
+ const allEmails = contacts
+   .map(contact => contact.email)
+   .filter((email): email is string => email !== null);
+ 
+ const allPhoneNumbers = contacts
+   .map(contact => contact.phoneNumber)
+   .filter((phone): phone is string => phone !== null);
+ 
+ // Remove duplicates
+ const uniqueEmails = [...new Set(allEmails)];
+ const uniquePhoneNumbers = [...new Set(allPhoneNumbers)];
+ 
+ // Ensure primary contact's email and phone are first in the lists
+ const orderedEmails = [
+   ...(primaryContact.email ? [primaryContact.email] : []),
+   ...uniqueEmails.filter(email => email !== primaryContact.email)
+ ];
+ 
+ const orderedPhoneNumbers = [
+   ...(primaryContact.phoneNumber ? [primaryContact.phoneNumber] : []),
+   ...uniquePhoneNumbers.filter(phone => phone !== primaryContact.phoneNumber)
+ ];
+ 
+ return {
+   primaryContactId: primaryContact.id,
+   emails: orderedEmails,
+   phoneNumbers: orderedPhoneNumbers,
+   secondaryContactIds: secondaryContacts.map(contact => contact.id)
+ };
 }
 
 
